@@ -1,4 +1,4 @@
-# L-Compressor 
+# L-Compressor
 
 100% local image and video compression application.
 
