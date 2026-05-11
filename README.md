@@ -2,6 +2,10 @@
 
 100% local image and video compression application.
 
+<div align="center">
+  <img src="image/Banner.png" width="100%"/>
+</div>
+
 ## Description
 
 L-Compressor is a project developed in Python as part of my first year of Bac Pro CIEL.
@@ -17,6 +21,38 @@ It offers an intuitive interface with a simple mode for quick use, and an advanc
 - Video compression with FFmpeg (CRF, bitrate, FPS, resolution)
 - File information display (size, dimensions, duration, etc.)
 - Double-click to edit slider values
+
+## Preview
+
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <b>File selection</b><br/>
+        <img src="image/select.png" width="250"/>
+      </td>
+      <td align="center">
+        <b>Image compression</b><br/>
+        <img src="image/image.png" width="250"/>
+      </td>
+      <td align="center">
+        <b>Image compression (advanced)</b><br/>
+        <img src="image/image-advanced.png" width="250"/>
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        <b>Video compression</b><br/>
+        <img src="image/video.png" width="250"/>
+      </td>
+      <td align="center">
+        <b>Video compression (advanced)</b><br/>
+        <img src="image/video-advanced.png" width="250"/>
+      </td>
+      <td></td>
+    </tr>
+  </table>
+</div>
 
 ## Technologies used
 
