@@ -68,7 +68,7 @@ It offers an intuitive interface with a simple mode for quick use, and an advanc
 ### 1. Clone the project
 
 ```bash
-git clone https://github.com/nath89-52/L_Compressor.git
+git clone https://github.com/nath89-52/L-Compressor.git
 cd L_Compressor
 ```
 
