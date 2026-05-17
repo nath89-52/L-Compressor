@@ -16,6 +16,10 @@ import subprocess
 import threading
 import sys
 import re
+import platform
+import shutil
+from pathlib import Path
+
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
@@ -35,7 +39,7 @@ def charger_volume():
         with open(CONFIG_PATH, "r") as f:
             data = json.load(f)
             return data.get("volume", 20)  # 20% par défaut
-    except:
+    except Exception:
         return 20
 
 def sauvegarder_volume(volume):
@@ -43,27 +47,37 @@ def sauvegarder_volume(volume):
     try:
         with open(CONFIG_PATH, "w") as f:
             json.dump({"volume": volume}, f)
-    except:
+    except Exception:
         pass
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+if platform.system() == "Windows":
+    FFMPEG_PATH = BASE_DIR / "ffmpeg" / "windows" / "ffmpeg.exe"
+    FFPROBE_PATH = BASE_DIR / "ffmpeg" / "windows" / "ffprobe.exe"
+else:
+    FFMPEG_PATH = shutil.which("ffmpeg")
+    FFPROBE_PATH = shutil.which("ffprobe")
 
 # ----------------------------------------------------------------------------
 # IMPORTS OPTIONNELS
 # ----------------------------------------------------------------------------
-# On tente d'importer les modules optionnels. Si absent, on désactive
-# les fonctionnalités correspondantes et on affiche un message d'installation.
 
 try:
-    # tkinterdnd2 permet le glisser-déposer de fichiers dans la fenêtre
     from tkinterdnd2 import DND_FILES, TkinterDnD
     TKINTERDND2_DISPONIBLE = True
 except ImportError:
     TKINTERDND2_DISPONIBLE = False
     print("tkinterdnd2 non installé. Installation recommandée: pip install tkinterdnd2")
 
-if getattr(sys, 'frozen', False):
-    vlc_path = os.path.join(sys._MEIPASS, 'vlc')
-    os.environ['PYTHON_VLC_MODULE_PATH'] = vlc_path
-    os.environ['PYTHON_VLC_LIB_PATH'] = os.path.join(vlc_path, 'libvlc.dll')
+import platform
+
+if platform.system() == "Windows":
+    import os
+    if getattr(sys, 'frozen', False):
+        vlc_path = os.path.join(sys._MEIPASS, 'vlc')
+        os.environ['PYTHON_VLC_MODULE_PATH'] = vlc_path
+        os.environ['PYTHON_VLC_LIB_PATH'] = os.path.join(vlc_path, 'libvlc.dll')
 
 try:
     import vlc
@@ -74,56 +88,40 @@ except ImportError:
 # ============================================================================
 # CONFIGURATION ET CONSTANTES
 # ============================================================================
-# Définition des couleurs et chemins utilisés dans toute l'application.
 
-# Couleurs du thème sombre (pour assurer un affichage cohérent)
-COULEUR_BG = "#1A1A1B"        # Fond principal (gris très foncé)
-COULEUR_CADRE = "#2B2B2B"     # Cadres et zones (gris anthracite)
-COULEUR_TEXTE = "#FFFFFF"     # Texte principal (blanc)
-COULEUR_TEXTE_GRIS = "#AAAAAA" # Texte secondaire (gris clair)
+COULEUR_BG = "#1A1A1B"
+COULEUR_CADRE = "#2B2B2B"
+COULEUR_TEXTE = "#FFFFFF"
+COULEUR_TEXTE_GRIS = "#AAAAAA"
 
-# Chemins des fichiers - adaptation selon mode développement/compilé
 if getattr(sys, 'frozen', False):
-    # Si l'application est compilée avec PyInstaller
     base_path = sys._MEIPASS
 else:
-    # En mode développement (script Python directement)
     base_path = os.path.dirname(__file__)
 
-ffmpeg_path = os.path.join(base_path, "ffmpeg.exe")  # Chemin vers ffmpeg.exe (inclus dans le projet, mais ignoré par Kilo)
-
-# Extensions de fichiers supportées par l'application
 EXTENSIONS_IMAGE = ('.jpg', '.jpeg', '.png', '.webp')
 EXTENSIONS_VIDEO = ('.mp4', '.mkv', '.mov', '.avi')
 
 # ============================================================================
 # GESTION DES TÂCHES EN ARRIÈRE-PLAN
 # ============================================================================
-# Utilisation de threads pour éviter de geler l'interface utilisateur
-# lors des opérations longues (compression, extraction de métadonnées).
 
 def executer_en_arriere_plan(fonction):
-    """
-    Exécute une fonction qui n'affecte pas l'interface utilisateur.
-    Cela permet de lancer la compression sans geler la fenêtre.
-    """
+    """Exécute une fonction dans un thread séparé pour ne pas geler l'UI."""
     thread = threading.Thread(target=fonction)
-    thread.daemon = True  # Le thread se termine quand le programme principal se termine
+    thread.daemon = True
     thread.start()
 
 # ============================================================================
 # VARIABLES GLOBALES
 # ============================================================================
-# Stockent l'état actuel de l'application (fichier sélectionné, type).
 
-fichier_selectionne = None   # Chemin du fichier à compresser
-type_fichier = None          # "image" ou "video"
+fichier_selectionne = None
+type_fichier = None
 
 # ============================================================================
 # TRAITEMENT DES FICHIERS
 # ============================================================================
-# Détection du type de fichier, sélection, prévisualisation, affichage
-# des informations et des options de compression.
 
 def traiter_fichier(fichier):
     """
@@ -135,14 +133,12 @@ def traiter_fichier(fichier):
     """
     global fichier_selectionne, type_fichier
     
-    # Vérification que le fichier existe
     if not fichier or not os.path.exists(fichier):
         return
     
     fichier_selectionne = fichier
     ext = os.path.splitext(fichier)[1].lower()
 
-    # Traitement selon le type de fichier
     if ext in EXTENSIONS_IMAGE:
         type_fichier = "image"
         afficher_preview_image(fichier)
@@ -157,9 +153,10 @@ def traiter_fichier(fichier):
         messagebox.showwarning("Format non supporté", "Veuillez sélectionner une image ou une vidéo.")
         return
 
-    # Active le bouton de compression une fois le fichier chargé
+    # On vérifie si le bouton est déjà affiché avant de le pack() à nouveau
     btn_compresser.configure(state="normal")
-    btn_compresser.pack(fill="x", pady=(8, 0))
+    if not btn_compresser.winfo_ismapped():
+        btn_compresser.pack(fill="x", pady=(8, 0))
     label_drop.pack_forget()
 
 def selectionner_fichier():
@@ -181,17 +178,16 @@ def on_drop(event):
 # ============================================================================
 # PRÉVISUALISATION
 # ============================================================================
-# Affichage d'une miniature ou lecteur vidéo dans la zone de prévisualisation.
 
 def afficher_preview_image(fichier):
     """Affiche l'image sélectionnée dans la zone de prévisualisation."""
     vider_preview()
     try:
         img = Image.open(fichier)
-        img.thumbnail((460, 260))  # Redimensionne pour tenir dans la zone
+        img.thumbnail((460, 260))
         photo = ImageTk.PhotoImage(img)
         lbl = ctk.CTkLabel(frame_preview, image=photo, text="")
-        lbl.image = photo  # Garde une référence pour éviter que l'image soit supprimée
+        lbl.image = photo
         lbl.pack(expand=True)
     except Exception as e:
         ctk.CTkLabel(frame_preview, text=f"Impossible d'afficher l'image\n{e}",
@@ -220,7 +216,6 @@ def afficher_preview_video(fichier):
             media = instance.media_new(fichier)
             player.set_media(media)
 
-            # Barre de contrôle
             controls = ctk.CTkFrame(frame_preview)
             controls.pack(fill="x", pady=4)
 
@@ -228,7 +223,6 @@ def afficher_preview_video(fichier):
             ctk.CTkButton(controls, text="⏸ Pause", command=player.pause).pack(side="left", padx=5)
             ctk.CTkButton(controls, text="⏹ Stop", command=player.stop).pack(side="left", padx=5)
 
-            # Volume
             volume_frame = ctk.CTkFrame(frame_preview)
             volume_frame.pack(fill="x", padx=10, pady=(0, 5))
 
@@ -237,14 +231,13 @@ def afficher_preview_video(fichier):
             slider_volume = ctk.CTkSlider(volume_frame, from_=0, to=100)
             slider_volume.pack(side="left", fill="x", expand=True, padx=5)
 
-            # ✅ label_volume créé AVANT d'être utilisé dans changer_volume
             label_volume = ctk.CTkLabel(volume_frame, text="")
             label_volume.pack(side="right", padx=5)
 
             volume_defaut = charger_volume()
             player.audio_set_volume(volume_defaut)
             slider_volume.set(volume_defaut)
-            label_volume.configure(text=f"{volume_defaut}%")  # ✅ Maintenant défini
+            label_volume.configure(text=f"{volume_defaut}%")
 
             def changer_volume(val):
                 volume = int(val)
@@ -270,7 +263,7 @@ def afficher_miniature_video(fichier):
     try:
         miniature_path = os.path.join(base_path, "_miniature_temp.jpg")
         commande = [
-            ffmpeg_path, '-y', '-i', fichier,
+            str(FFMPEG_PATH), '-y', '-i', fichier,
             '-vframes', '1', '-q:v', '2', miniature_path
         ]
         flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
@@ -297,8 +290,6 @@ def vider_preview():
 # ============================================================================
 # INFORMATIONS SUR LES FICHIERS
 # ============================================================================
-# Extraction et affichage des métadonnées des fichiers (taille, dimensions,
-# durée, format, et pour les vidéos: bitrate et FPS en mode avancé).
 
 def afficher_infos_image(fichier):
     """Affiche les informations du fichier image (taille, dimensions, format)."""
@@ -312,7 +303,7 @@ def afficher_infos_image(fichier):
         w, h = img.size
         ext = os.path.splitext(fichier)[1].upper().replace(".", "")
         label_infos.configure(text=f"Taille : {taille:.1f} {unite}   •   {w}x{h}px   •   {ext}")
-    except:
+    except Exception:
         label_infos.configure(text="Infos indisponibles")
 
 def afficher_infos_video(fichier):
@@ -322,47 +313,34 @@ def afficher_infos_video(fichier):
     En mode avancé: ajoute le bitrate et les FPS extraits via ffmpeg.
     """
     try:
-        # ========== TAILLE DU FICHIER ==========
-        taille = os.path.getsize(fichier) / (1024 * 1024)  # Conversion en mégaoctets
+        taille = os.path.getsize(fichier) / (1024 * 1024)
         ext = os.path.splitext(fichier)[1].upper().replace(".", "")
 
-        # ========== EXTRACTION MÉTADONNÉES AVEC FFMPEG ==========
-        # ffmpeg -i écrit les métadonnées sur stderr, pas stdout
         result = subprocess.run(
-            [ffmpeg_path, '-i', fichier],
+            [str(FFMPEG_PATH), '-i', fichier],
             stderr=subprocess.PIPE, stdout=subprocess.DEVNULL,
             creationflags=(subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
         )
         output = result.stderr.decode('utf-8', errors='ignore')
 
-        # ========== EXTRACTION DE LA DURÉE ==========
-        # Format typique: "Duration: 00:01:23.45, ..."
         duree = "?"
         for ligne in output.split('\n'):
             if 'Duration:' in ligne:
                 duree = ligne.strip().split('Duration:')[1].split(',')[0].strip()
                 break
 
-        # ========== EXTRACTION DES DIMENSIONS (RÉSOLUTION) ==========
-        # Cherche un motif type "1920x1080" dans la sortie
         dims = "?"
         match = re.search(r'(\d{2,5}x\d{2,5})', output)
         if match:
             dims = match.group(1)
 
-        # ========== EXTRACTION DU BITRATE ==========
-        # Le bitrate peut apparaître sous deux formes dans la sortie ffmpeg:
-        #   1. "bitrate: 4500 kb/s"  (sur une ligne dédiée)
-        #   2. "Video: h264 ..., 4500 kb/s"  (intégré à la ligne de description du stream)
         bitrate = "?"
-        # Méthode 1: Cherche explicitement "bitrate: X kb/s"
         for ligne in output.split('\n'):
             if 'bitrate:' in ligne:
                 match_br = re.search(r'bitrate:\s*(\d+(?:\.\d+)?)\s*kb/s', ligne, re.IGNORECASE)
                 if match_br:
                     bitrate = match_br.group(1)
                     break
-        # Méthode 2 (fallback): Cherche "X kb/s" dans la ligne du flux vidéo
         if bitrate == "?":
             for ligne in output.split('\n'):
                 if 'Stream' in ligne and 'Video:' in ligne:
@@ -371,8 +349,6 @@ def afficher_infos_video(fichier):
                         bitrate = match_br.group(1)
                         break
 
-        # ========== EXTRACTION DES FPS ==========
-        # Cherche "XX fps" ou "XX.XX fps" dans la ligne du flux vidéo
         fps = "?"
         for ligne in output.split('\n'):
             if 'Stream' in ligne and 'Video:' in ligne:
@@ -381,11 +357,8 @@ def afficher_infos_video(fichier):
                     fps = match_fps.group(1)
                     break
 
-        # ========== CONSTRUCTION DE LA CHAÎNE D'INFORMATION ==========
-        # Infos de base (toujours affichées, quel que soit le mode)
         infos_base = f"Taille : {taille:.1f} Mo   •   {dims}px   •   Durée : {duree}   •   {ext}"
 
-        # En mode avancé, on ajoute le bitrate et les FPS
         if mode_avance.get():
             infos_base += f"   •   Bitrate : {bitrate} kb/s   •   FPS : {fps}"
 
@@ -396,8 +369,6 @@ def afficher_infos_video(fichier):
 # ============================================================================
 # OPTIONS DE COMPRESSION
 # ============================================================================
-# Gestion de l'affichage des options selon le mode (simple/avancé)
-# et selon le type de fichier (image/vidéo).
 
 def afficher_options_image():
     """Affiche les options de compression pour les images."""
@@ -420,10 +391,9 @@ def vider_options():
     for widget in frame_options.winfo_children():
         try:
             widget.pack_forget()
-        except:
+        except Exception:
             pass
 
-# --- Options simples (images) ---
 def _options_image_simple():
     """Options simples pour images: un seul slider de qualité."""
     global slider_qualite
@@ -433,11 +403,9 @@ def _options_image_simple():
     slider_qualite.pack(fill="x", padx=40, pady=4)
     lbl = ctk.CTkLabel(frame_options, text="Qualité : 70", text_color=COULEUR_TEXTE)
     lbl.pack()
-    # Met à jour le label quand le slider bouge
     slider_qualite.configure(command=lambda v: lbl.configure(text=f"Qualité : {int(v)}"))
     make_label_editable(lbl, slider_qualite)
 
-# --- Options simples (vidéos) ---
 def _options_video_simple():
     """Options simples pour vidéos: un seul slider de qualité (converti en CRF)."""
     global slider_qualite
@@ -450,7 +418,6 @@ def _options_video_simple():
     slider_qualite.configure(command=lambda v: lbl.configure(text=f"Qualité : {int(v)}"))
     make_label_editable(lbl, slider_qualite)
 
-# --- Options avancées (images) ---
 def _options_image_avance():
     """Options avancées pour images: qualité minimum, résolution, taille cible."""
     global slider_qualite, resolution_var, slider_taille
@@ -464,7 +431,6 @@ def _options_image_avance():
     slider_qualite.configure(command=lambda v: lbl_q.configure(text=f"Qualité minimum : {int(v)}"))
     make_label_editable(lbl_q, slider_qualite)
 
-    # Sélecteur de résolution
     row1 = ctk.CTkFrame(frame_options, fg_color=COULEUR_BG)
     row1.pack(fill="x", padx=40, pady=(8, 0))
     ctk.CTkLabel(row1, text="Résolution", font=("Arial", 12), text_color=COULEUR_TEXTE).pack(side="left")
@@ -474,17 +440,16 @@ def _options_image_avance():
     resolution_var.set("Original")
     resolution_var.pack(side="right")
 
-    # Slider taille cible (en mégaoctets)
     ctk.CTkLabel(frame_options, text="Taille cible (Mo)", font=("Arial", 12), text_color=COULEUR_TEXTE).pack(pady=(8, 0))
-    slider_taille = ctk.CTkSlider(frame_options, from_=1, to=100)
-    slider_taille.set(20)
+    slider_taille = ctk.CTkSlider(frame_options, from_=0.1, to=10)
+    slider_taille.set(2.0)
     slider_taille.pack(fill="x", padx=40, pady=4)
     lbl_t = ctk.CTkLabel(frame_options, text="Taille cible : 2.0 Mo", text_color=COULEUR_TEXTE)
     lbl_t.pack()
-    slider_taille.configure(command=lambda v: lbl_t.configure(text=f"Taille cible : {v/10:.1f} Mo"))
+    # Le label affiche directement la valeur du slider (pas de division)
+    slider_taille.configure(command=lambda v: lbl_t.configure(text=f"Taille cible : {v:.1f} Mo"))
     make_label_editable(lbl_t, slider_taille)
 
-# --- Options avancées (vidéos) ---
 def _options_video_avance():
     """Options avancées pour vidéos: résolution, FPS, bitrate personnalisé avec checkbox."""
     afficher_options_video_avance_avec_bitrate()
@@ -492,15 +457,12 @@ def _options_video_avance():
 # ============================================================================
 # COMPRESSION
 # ============================================================================
-# Logique de compression selon le type de fichier et le mode sélectionné.
-# Les opérations longues sont exécutées en arrière-plan pour ne pas geler l'UI.
 
 def compresser():
     """Démarre la compression du fichier sélectionné."""
     if not fichier_selectionne:
         return
 
-    # Demande où enregistrer le fichier compressé
     sortie = filedialog.asksaveasfilename(
         defaultextension=(".jpg" if type_fichier == "image" else ".mp4"),
         filetypes=(
@@ -511,10 +473,8 @@ def compresser():
     if not sortie:
         return
 
-    # Indique que la compression est en cours
     btn_compresser.configure(state="disabled", text="⏳  Compression en cours...")
 
-    # Lance la compression en arrière-plan selon le type et le mode
     if type_fichier == "image":
         if mode_avance.get():
             executer_en_arriere_plan(lambda: _compresser_image_avance(sortie))
@@ -526,12 +486,10 @@ def compresser():
         else:
             executer_en_arriere_plan(lambda: _compresser_video_simple(sortie))
 
-# --- Compression image simple ---
 def _compresser_image_simple(sortie):
     """Compression d'image avec qualité simple (PIL, format JPEG/WebP)."""
     try:
         img = Image.open(fichier_selectionne)
-        # Convertit en RGB pour JPEG si l'image a une transparence
         if img.mode in ("RGBA", "P") and sortie.lower().endswith(".jpg"):
             img = img.convert("RGB")
         img.save(sortie, quality=int(slider_qualite.get()), optimize=True)
@@ -541,7 +499,6 @@ def _compresser_image_simple(sortie):
     finally:
         fenetre.after(0, lambda: btn_compresser.configure(state="normal", text="✅  Compresser"))
 
-# --- Compression image avancée ---
 def _compresser_image_avance(sortie):
     """Compression d'image avec taille cible et redimensionnement."""
     try:
@@ -549,15 +506,12 @@ def _compresser_image_avance(sortie):
         if img.mode in ("RGBA", "P") and sortie.lower().endswith(".jpg"):
             img = img.convert("RGB")
 
-        # Redimensionne si une résolution spécifique est choisie
         res = resolution_var.get()
         if res != "Original":
             largeur, hauteur = map(int, res.split("x"))
             img = img.resize((largeur, hauteur), Image.LANCZOS)
 
-        # Cherche la qualité optimale pour atteindre la taille cible
-        # On part de la qualité max (95) et on diminue jusqu'à ce que la taille soit atteinte
-        taille_cible_octets = slider_taille.get() * 1024 * 1024  # Conversion Mo → octets
+        taille_cible_octets = slider_taille.get() * 1024 * 1024
         qualite_min = int(slider_qualite.get())
         qualite = 95
         img.save(sortie, quality=qualite, optimize=True)
@@ -572,16 +526,15 @@ def _compresser_image_avance(sortie):
     finally:
         fenetre.after(0, lambda: btn_compresser.configure(state="normal", text="✅  Compresser"))
 
-# --- Compression vidéo simple ---
 def _compresser_video_simple(sortie):
     """Compression vidéo avec qualité CRF (Constant Rate Factor)."""
     try:
-        # Convertit qualité (10-95) en CRF (23-51)
-        # Plus le CRF est bas, meilleure est la qualité
-        # CRF=0 = sans perte, CRF=51 = qualité très basse
-        valeur_crf = int(51 - (slider_qualite.get() * 0.5))
+        # qualite 95 → CRF ~0 (meilleure qualité)
+        # qualite 10 → CRF ~46 (qualité basse)
+        valeur_crf = int(51 - (slider_qualite.get() / 95) * 51)
+        valeur_crf = max(0, min(51, valeur_crf))  # Sécurité: clamp entre 0 et 51
         commande = [
-            ffmpeg_path, '-y', '-i', fichier_selectionne,
+            str(FFMPEG_PATH), '-y', '-i', fichier_selectionne,
             '-vcodec', 'libx264', '-crf', str(valeur_crf),
             '-preset', 'fast', '-acodec', 'aac',
             '-pix_fmt', 'yuv420p', sortie
@@ -596,25 +549,26 @@ def _compresser_video_simple(sortie):
     finally:
         fenetre.after(0, lambda: btn_compresser.configure(state="normal", text="✅  Compresser"))
 
-# --- Compression vidéo avancée ---
 def _compresser_video_avance(sortie):
     """Compression vidéo avec bitrate personnalisé, résolution et FPS."""
     try:
         res = resolution_var.get()
         fps = fps_var.get()
-        bitrate = int(slider_bitrate.get())
         
-        commande = [ffmpeg_path, '-y', '-i', fichier_selectionne]
+        commande = [str(FFMPEG_PATH), '-y', '-i', fichier_selectionne]
 
-        # Redimensionne si nécessaire
         if res != "Original":
             largeur, hauteur = res.split("x")
             commande += ['-vf', f'scale={largeur}:{hauteur}']
 
-        # Utilise le bitrate défini (en kilobits par seconde)
-        commande += ['-vcodec', 'libx264', '-b:v', f'{bitrate}k', '-preset', 'fast']
+        commande += ['-vcodec', 'libx264', '-preset', 'fast']
 
-        # Définit les FPS si nécessaire
+        if bitrate_personnalise and bitrate_personnalise.get():
+            bitrate = int(slider_bitrate.get())
+            commande += ['-b:v', f'{bitrate}k']
+        else:
+            commande += ['-crf', '23']  # Valeur CRF par défaut (bonne qualité)
+
         if fps != "Original":
             commande += ['-r', fps]
 
@@ -646,82 +600,75 @@ def on_toggle_mode():
             afficher_options_image()
         elif type_fichier == "video":
             afficher_options_video()
-            afficher_infos_video(fichier_selectionne)  # Refresh pour inclure/exclure bitrate & FPS
+            afficher_infos_video(fichier_selectionne)
 
 # ============================================================================
 # CRÉATION DE L'INTERFACE GRAPHIQUE
 # ============================================================================
-# Construction de l'interface avec CustomTkinter: fenêtre, boutons, sliders,
-# zones de prévisualisation et d'options. Thème sombre appliqué.
 
-# Configure le thème sombre
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-# Crée la fenêtre principale
 if TKINTERDND2_DISPONIBLE:
     fenetre = TkinterDnD.Tk()
 else:
     fenetre = ctk.CTk()
 
-# Applique les couleurs
 fenetre.configure(bg=COULEUR_BG)
 fenetre.title("L Compressor")
-icon_path = os.path.join(base_path, "logo.ico")
-print("base_path:", base_path)
-print("icon_path:", icon_path)
-print("exists:", os.path.exists(icon_path))
-fenetre.iconbitmap(icon_path)
+
+# Icône de l'application
+icon_path = os.path.join(base_path, "..", "assets", "logo.png")
+
+if platform.system() == "Windows":
+    ico_path = os.path.join(base_path, "..", "assets", "logo.ico")
+    if os.path.exists(ico_path):
+        fenetre.iconbitmap(ico_path)
+else:
+    if os.path.exists(icon_path):
+        icon_image = Image.open(icon_path)
+        photo = ImageTk.PhotoImage(icon_image)
+        fenetre.iconphoto(True, photo)
+
 fenetre.geometry("570x750")
 fenetre.minsize(460, 650)
 fenetre.resizable(True, True)
 
-# Conteneur principal (pad interne pour l'espacement)
 main_container = ctk.CTkFrame(fenetre, fg_color=COULEUR_BG)
 main_container.pack(fill="both", expand=True, padx=20, pady=15)
 
-# En-tête avec titre et interrupteur mode avancé
 header = ctk.CTkFrame(main_container, fg_color=COULEUR_BG)
 header.pack(fill="x", pady=(0, 10))
 ctk.CTkLabel(header, text="Local Compressor", font=("Arial", 22, "bold"), text_color=COULEUR_TEXTE).pack(side="left")
 mode_avance = ctk.BooleanVar(value=False)
-# L'interrupteur appelle on_toggle_mode() à chaque changement
 ctk.CTkSwitch(header, text="Mode avancé", variable=mode_avance,
               command=on_toggle_mode).pack(side="right", pady=5)
 
-# Bouton de sélection de fichier
 btn_selection = ctk.CTkButton(main_container, text="📂  Sélectionner un fichier",
               command=selectionner_fichier, height=38,
               fg_color=COULEUR_CADRE, text_color=COULEUR_TEXTE,
               hover_color="#3A3A3A")
 btn_selection.pack(fill="x", pady=(0, 8))
 
-# Zone de prévisualisation (image ou miniature vidéo)
 frame_preview = ctk.CTkFrame(main_container, fg_color=COULEUR_CADRE, corner_radius=8)
 frame_preview.pack(fill="both", expand=True, pady=(0, 4))
 
-# Active le drag & drop si disponible
 if TKINTERDND2_DISPONIBLE:
     frame_preview.drop_target_register(DND_FILES)
     frame_preview.dnd_bind('<<Drop>>', on_drop)
 
-# Label d'invite initial (sera retiré quand un fichier est chargé)
 label_drop = ctk.CTkLabel(frame_preview, text="Glissez un fichier ici ou cliquez pour sélectionner",
                           text_color=COULEUR_TEXTE_GRIS, font=("Arial", 13))
 label_drop.pack(expand=True)
 
-# Label d'informations du fichier (taille, durée, etc.)
 label_infos = ctk.CTkLabel(main_container, text="", font=("Arial", 11), text_color=COULEUR_TEXTE_GRIS)
 label_infos.pack(pady=(2, 4))
 
-# Séparateur horizontal
 ctk.CTkFrame(main_container, height=1, fg_color=COULEUR_CADRE).pack(fill="x", pady=2)
 
-# Zone d'options de compression
 frame_options = ctk.CTkFrame(main_container, fg_color=COULEUR_BG)
 frame_options.pack(fill="x", pady=2)
 
-# Bouton de compression (caché au départ, activé après sélection de fichier)
 btn_compresser = ctk.CTkButton(main_container, text="✅  Compresser",
                                 command=compresser, height=42,
                                 state="disabled",
@@ -729,7 +676,7 @@ btn_compresser = ctk.CTkButton(main_container, text="✅  Compresser",
                                 text_color=COULEUR_TEXTE,
                                 font=("Arial", 14, "bold"))
 
-# Variables pour les options (initialisées à None, créées dynamiquement)
+# Variables pour les options
 slider_qualite = None
 resolution_var = None
 slider_taille = None
@@ -742,7 +689,6 @@ frame_bitrate = None
 # ============================================================================
 # BITRATE PERSONNALISÉ (CHECKBOX + SLIDER)
 # ============================================================================
-# Le bitrate personnalisé pour vidéos est masqué/non masqué via une checkbox.
 
 def afficher_options_video_avance_avec_bitrate():
     """
@@ -751,7 +697,6 @@ def afficher_options_video_avance_avec_bitrate():
     """
     global resolution_var, fps_var, slider_bitrate, label_bitrate, frame_bitrate, bitrate_personnalise
 
-    # ===== SÉLECTEUR DE RÉSOLUTION =====
     row1 = ctk.CTkFrame(frame_options, fg_color=COULEUR_BG)
     row1.pack(fill="x", padx=40, pady=(12, 0))
     ctk.CTkLabel(row1, text="Résolution", font=("Arial", 12), text_color=COULEUR_TEXTE).pack(side="left")
@@ -761,7 +706,6 @@ def afficher_options_video_avance_avec_bitrate():
     resolution_var.set("Original")
     resolution_var.pack(side="right")
 
-    # ===== SÉLECTEUR FPS =====
     row2 = ctk.CTkFrame(frame_options, fg_color=COULEUR_BG)
     row2.pack(fill="x", padx=40, pady=(8, 0))
     ctk.CTkLabel(row2, text="FPS", font=("Arial", 12), text_color=COULEUR_TEXTE).pack(side="left")
@@ -770,14 +714,12 @@ def afficher_options_video_avance_avec_bitrate():
     fps_var.set("Original")
     fps_var.pack(side="right")
 
-    # ===== CHECKBOX BITRATE PERSONNALISÉ =====
     row3 = ctk.CTkFrame(frame_options, fg_color=COULEUR_BG)
     row3.pack(fill="x", padx=40, pady=(12, 0))
     bitrate_personnalise = ctk.BooleanVar(value=False)
     ctk.CTkCheckBox(row3, text="Bitrate personnalisé", variable=bitrate_personnalise,
                    text_color=COULEUR_TEXTE, fg_color=COULEUR_CADRE).pack(side="left")
     
-    # Frame pour le slider bitrate (caché au départ, affiché si checkbox cochée)
     frame_bitrate = ctk.CTkFrame(frame_options, fg_color=COULEUR_BG)
     
     def toggle_bitrate_slider():
@@ -796,17 +738,12 @@ def afficher_options_video_avance_avec_bitrate():
     slider_bitrate.configure(command=lambda v: label_bitrate.configure(text=f"Bitrate : {int(v)} kbps"))
     make_label_editable(label_bitrate, slider_bitrate)
     
-    # Callback: quand la valeur de la checkbox change, on affiche/masque le slider
     bitrate_personnalise.trace("w", lambda *args: toggle_bitrate_slider())
-    
-    # Ne pas afficher le slider au départ (checkbox décochée par défaut)
     frame_bitrate.pack_forget()
 
 # ============================================================================
 # ÉDITION PAR DOUBLE-CLIC
 # ============================================================================
-# Permet de modifier les valeurs des sliders en double-cliquant sur leur label
-# (utilitaire pour un contrôle précis sans utiliser la souris).
 
 def make_label_editable(label_widget, slider_widget):
     """
@@ -815,7 +752,6 @@ def make_label_editable(label_widget, slider_widget):
     """
     def on_label_click(event=None):
         try:
-            # Demande une nouvelle valeur à l'utilisateur
             from tkinter import simpledialog
             nouvelle_valeur = simpledialog.askfloat(
                 "Éditer valeur",
@@ -823,7 +759,6 @@ def make_label_editable(label_widget, slider_widget):
             )
             
             if nouvelle_valeur is not None:
-                # Valide que la valeur est dans la plage autorisée
                 val_min = float(slider_widget.cget('from_'))
                 val_max = float(slider_widget.cget('to'))
                 

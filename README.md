@@ -63,73 +63,105 @@ It offers an intuitive interface with a simple mode for quick use, and an advanc
 - tkinterdnd2 (drag & drop)
 - VLC (video playback)
 
+### Download the executable
+
+[![Download from GitHub Releases](https://img.shields.io/badge/Download-GitHub%20Releases-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/nath89-52/L_Compressor/releases/tag/v1.0)
+
 ## Installation
 
 ### 1. Clone the project
-
 ```bash
 git clone https://github.com/nath89-52/L_Compressor.git
 cd L_Compressor
 ```
 
-### 2. Install dependencies
-
+### 2. Install Python dependencies
 ```bash
-pip install customtkinter pillow tkinterdnd2
+pip install -r requirements.txt
 ```
 
-#### Video preview (optional)
+## Windows
+#### Included dependencies
+The repository already includes:
+- FFmpeg binaries
+- VLC runtime files
+No additional installation is required.
 
-To enable video preview:
-
-- The files `libvlc.dll`, `libvlccore.dll` and the `plugins/` folder must be in the project directory *(already included in the repo)*
-- The `python-vlc` Python module:
-
+#### Run the application
 ```bash
-pip install python-vlc
+python src/main.py
+```
+### Build Windows executable
+#### First build (generates .spec file)
+```bash
+pyinstaller --onefile --windowed --name "L-Compressor" ^
+--add-binary "ffmpeg.exe;." ^
+--add-binary "vlc/libvlc.dll;vlc" ^
+--add-binary "vlc/libvlccore.dll;vlc" ^
+--add-data "vlc/plugins;vlc/plugins" ^
+--icon=assets/logo.ico src/main.py
 ```
 
-> ℹ️ Installing VLC Media Player is **not required**, the included files are sufficient.
-
-### 3. Install FFmpeg
-
-FFmpeg is required for this project to work.
-
-- Download FFmpeg: https://ffmpeg.org/download.html
-- Extract the archive
-- Place `ffmpeg.exe` in the same folder as the script  
-or add FFmpeg to the system PATH (recommended)
-
-### 4. Run the application
-
+#### Subsequent builds
 ```bash
-python main.py
+pyinstaller "L-Compressor.spec"
 ```
 
-## Build the executable
+## Linux
 
-### First build (generates the .spec file)
+### 1. System dependencies
+
+#### Arch Linux
 ```bash
-pyinstaller --onefile --windowed --name "L Compressor" --add-binary "ffmpeg.exe;." --add-binary "vlc/libvlc.dll;vlc" --add-binary "vlc/libvlccore.dll;vlc" --add-data "vlc/plugins;vlc/plugins" --icon=logo.ico main.py
+sudo pacman -Syu python python-pip tk ffmpeg vlc git
+```
+#### Ubuntu / Debian
+```bash
+sudo apt install python3 python3-pip python3-tk ffmpeg vlc git
 ```
 
-### Subsequent builds using the .spec file
+### 2. Virtual environment (recommended)
 ```bash
-pyinstaller "L Compressor.spec"
+python -m venv venv
+source venv/bin/activate
 ```
 
-> ⚠️ Do not re-run the first command after modifying the `.spec` file, it will overwrite it.
+### 3. Run the application
+```bash
+python src/main.py
+```
 
-### Download the executable
+### Build Linux executable
 
-[![Download from GitHub Releases](https://img.shields.io/badge/Download-GitHub%20Releases-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/nath89-52/L_Compressor/releases/tag/v1.0)
+#### Install PyInstaller if needed:
+```bash
+pip install pyinstaller
+```
+#### Then build:
+```bash
+pyinstaller --onefile --windowed --name "L-Compressor" src/main.py
+```
+The binary will be located in:
+```bash
+dist/L-Compressor
+```
+Run it with:
+```bash
+./dist/L-Compressor
+```
+
+⚠ Notes (Linux)
+FFmpeg must be installed via system package manager
+VLC is required for video preview support
+Some virtual machines may have issues with hardware-accelerated video decoding
+The application automatically uses system FFmpeg (shutil.which("ffmpeg"))
 
 ## Usage
 - Run via terminal (`python main.py`) or launch the `.exe`
-- Select a file or drag it into the window
+- Select or drag & drop a file
 - Choose compression settings
 - Click Compress
-- Choose the save location
+- Choose the output location
 
 ## Available modes
 ### Simple mode
@@ -159,10 +191,6 @@ Quick quality adjustment
 This is my first project published on GitHub.
 
 It was developed as part of my first year of Bac Pro CIEL and allowed me to learn Python application development, the use of multimedia libraries, and the creation of graphical user interfaces.
-
-Feedback, advice and suggestions are welcome.
-
-## Contact
 
 For any suggestion, advice or feedback:
 

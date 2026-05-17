@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['main.py'],
+    ['src/main.py'],
     pathex=[],
-    binaries=[('ffmpeg.exe', '.'), ('vlc/libvlc.dll', 'vlc'), ('vlc/libvlccore.dll', 'vlc')],
-    datas=[('vlc/plugins', 'vlc/plugins'), ('logo.ico', '.')],
+    binaries=[],
+    datas=[],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -22,7 +22,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='L Compressor',
+    name='L-Compressor',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -35,5 +35,4 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['logo.ico'],
 )
