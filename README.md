@@ -122,7 +122,7 @@ pyinstaller "L Compressor.spec"
 
 ### Download the executable
 
-[![Download from GitHub Releases](https://img.shields.io/badge/Download-GitHub%20Releases-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/nath89-52/L-Compressor/releases/tag/v1.0)
+[![Download from GitHub Releases](https://img.shields.io/badge/Download-GitHub%20Releases-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/nath89-52/L-Compressor/releases/tag/v1.0.0)
 
 ## Usage
 - Run via terminal (`python main.py`) or launch the `.exe`
