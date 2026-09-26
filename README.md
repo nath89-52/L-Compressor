@@ -1,3 +1,6 @@
+#!!AI USAGE DISCLAIMER!!
+The code of this project was fully vibe-codded with 
+
 # L-Compressor
 
 100% local image and video compression application.
